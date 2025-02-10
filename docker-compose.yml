@@ -1,0 +1,13 @@
+services:
+  fg-asteroids:
+    container_name: fg-asteroids
+    image: ${AWS_ECR_URL}fg-asteroids:latest
+    networks:
+      - nginx-proxy
+    environment:
+      VIRTUAL_HOST: asteroids.fracasse.ai
+      LETSENCRYPT_HOST: asteroids.fracasse.ai
+
+networks:
+  nginx-proxy:
+    external: true

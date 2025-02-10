@@ -1,8 +1,5 @@
-# Use Node.js LTS (Long Term Support) as base image
-FROM node:20-slim
-
-# Set working directory
-WORKDIR /app
+# Build stage
+FROM node:20-slim AS build
 
 # Set PNPM_HOME and add it to PATH
 ENV PNPM_HOME="/root/.local/share/pnpm"
@@ -13,6 +10,8 @@ RUN npm install -g corepack@latest
 
 # Enable and prepare corepack
 RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
 
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
@@ -26,11 +25,15 @@ COPY . .
 # Build the app
 RUN pnpm build
 
-# Install a lightweight server to serve the static files
-RUN pnpm add -g serve
+# Production stage
+FROM nginx:alpine
 
-# Expose port 3000
-EXPOSE 3000
+# Copy the built assets to nginx
+COPY --from=build /app/dist /usr/share/nginx/html
 
-# Start the server
-CMD ["serve", "-s", "dist", "-l", "3000"] 
+# Copy nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"] 
