@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import { BoundingCircle, VectorGraphics } from "../graphics/VectorGraphics";
-import { EntityType, GameEntity, Hull } from "./GameEntity";
+import { EntityType, GameEntity, wrapPosition } from "./GameEntity";
+import { VectorGraphics } from "../graphics/VectorGraphics";
 
 export class Projectile implements GameEntity {
   public alive = true;
@@ -28,12 +28,7 @@ export class Projectile implements GameEntity {
 
     // Update position
     this.position.add(this.velocity.clone().multiplyScalar(deltaTime));
-
-    // Screen wrapping
-    if (this.position.x > 1000) this.position.x -= 2000;
-    if (this.position.x < -1000) this.position.x += 2000;
-    if (this.position.y > 1333) this.position.y -= 2666;
-    if (this.position.y < -1333) this.position.y += 2666;
+    wrapPosition(this.position);
   }
 
   draw(graphics: VectorGraphics): void {
@@ -48,23 +43,31 @@ export class Projectile implements GameEntity {
     return this.alive;
   }
 
-  destroy(): void {
-    this.alive = false;
-  }
-
   getPosition(): THREE.Vector2 {
-    return this.position;
+    return this.position.clone();
   }
 
   getVelocity(): THREE.Vector2 {
-    return this.velocity;
+    return this.velocity.clone();
   }
 
-  getBoundingCircle(): BoundingCircle {
-    return { center: this.position, radius: 1 };
+  getBoundingCircle() {
+    return {
+      center: this.position.clone(),
+      radius: this.length / 2,
+    };
   }
 
-  getHull(): Hull {
-    return { points: [this.position], closed: false };
+  getHull() {
+    const direction = this.velocity.clone().normalize();
+    const end = this.position.clone().add(direction.multiplyScalar(this.length));
+    return {
+      points: [this.position.clone(), end.clone()],
+      closed: false,
+    };
+  }
+
+  destroy(): void {
+    this.alive = false;
   }
 }

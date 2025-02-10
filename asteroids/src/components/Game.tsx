@@ -91,32 +91,49 @@ export const Game: React.FC<GameProps> = ({ width, height }) => {
     const scene = sceneRef.current;
     const camera = scene.children[0] as THREE.OrthographicCamera;
     let lastTime = performance.now();
-    let animationFrameId: number;
+    let frameId: number;
+    let running = true;
 
     const animate = (currentTime: number) => {
-      const deltaTime = (currentTime - lastTime) / 1000;
+      if (!running) return;
+
+      // Handle tab visibility changes
+      if (document.hidden) {
+        lastTime = currentTime;
+        frameId = requestAnimationFrame(animate);
+        return;
+      }
+
+      // Clamp deltaTime to prevent large jumps
+      const deltaTime = Math.min((currentTime - lastTime) / 1000, 0.1); // Max 100ms
       lastTime = currentTime;
 
-      update(deltaTime);
+      if (deltaTime > 0) {
+        // Only update if time has actually passed
+        update(deltaTime);
 
-      // Render
-      graphicsRef.current!.clear();
-      entities.forEach((entity) => entity.draw(graphicsRef.current!));
-      effects.forEach((effect) => effect.render(graphicsRef.current!));
-      rendererRef.current!.render(scene, camera);
+        // Render
+        if (graphicsRef.current && rendererRef.current) {
+          graphicsRef.current.clear();
+          entities.forEach((entity) => entity.draw(graphicsRef.current!));
+          effects.forEach((effect) => effect.render(graphicsRef.current!));
+          rendererRef.current.render(scene, camera);
+        }
+      }
 
-      animationFrameId = requestAnimationFrame(animate);
+      frameId = requestAnimationFrame(animate);
     };
 
-    animationFrameId = requestAnimationFrame(animate);
+    frameId = requestAnimationFrame(animate);
 
     return () => {
-      cancelAnimationFrame(animationFrameId);
+      running = false;
+      cancelAnimationFrame(frameId);
       if (rendererRef.current) {
         rendererRef.current.dispose();
       }
     };
-  }, [graphicsRef.current, entities, effects]);
+  }, [update, entities, effects]); // Include entities and effects to ensure rendering updates
 
   // Handle space bar for state transitions
   useEffect(() => {
