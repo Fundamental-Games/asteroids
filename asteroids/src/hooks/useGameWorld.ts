@@ -52,8 +52,9 @@ export function useGameWorld(controlsRef: React.RefObject<GameControls>) {
   const getEntities = useCallback(() => worldRef.current.getEntities(), [worldRef]);
 
   useEffect(() => {
+    const world = worldRef.current;
     return () => {
-      worldRef.current?.dispose();
+      world.dispose();
     };
   }, [worldRef]);
 

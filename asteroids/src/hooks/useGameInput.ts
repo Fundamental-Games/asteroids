@@ -55,7 +55,7 @@ export function useGameInput(controlsRef: MutableRefObject<GameControls>) {
         isFiring: false,
       };
     };
-  }, [handleKeyDown, handleKeyUp]);
+  }, [controlsRef, handleKeyDown, handleKeyUp]);
 
   return controlsRef;
 }

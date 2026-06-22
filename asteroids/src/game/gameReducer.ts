@@ -111,7 +111,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           asteroidConfigs: generateAsteroidsForStage(action.stage),
         };
 
-      case "ASTEROID_DESTROYED":
+      case "ASTEROID_DESTROYED": {
         const scoreValues = {
           [AsteroidSize.Large]: 20,
           [AsteroidSize.Medium]: 50,
@@ -120,6 +120,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
         const newScore = state.score + scoreValues[action.size];
         return { ...state, score: newScore };
+      }
 
       case "LARGE_UFO_DESTROYED":
         return { ...state, score: state.score + 200 };
@@ -127,7 +128,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       case "SMALL_UFO_DESTROYED":
         return { ...state, score: state.score + 100 };
 
-      case "SHIP_DESTROYED":
+      case "SHIP_DESTROYED": {
         const newLives = state.lives - 1;
         if (newLives <= 0) {
           return {
@@ -142,6 +143,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           status: "respawning",
           respawnTime: Date.now() + 2000, // 2 second delay
         };
+      }
 
       case "RESPAWN_COMPLETE":
         return {
