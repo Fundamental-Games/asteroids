@@ -1,4 +1,4 @@
-import { GameState, GameAction, AsteroidSpawnConfig, GameStatus } from "./types";
+import { GameState, GameAction, AsteroidSpawnConfig } from "./types";
 import { AsteroidSize } from "./Asteroid";
 
 const INITIAL_STATE: GameState = {
@@ -93,11 +93,6 @@ export function generateAsteroidsForStage(stage: number): AsteroidSpawnConfig[] 
 }
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
-  console.log(`Game reducer: ${action.type}`, {
-    prevState: { status: state.status, lives: state.lives },
-    action,
-  });
-
   const newState = ((): GameState => {
     switch (action.type) {
       case "START_GAME":
@@ -158,20 +153,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       case "STAGE_COMPLETE":
         return {
           ...state,
-          stage: state.stage + 1,
-          asteroidConfigs: generateAsteroidsForStage(state.stage + 1),
+          status: "stage-complete",
         };
 
       default:
         return state;
     }
   })();
-
-  console.log("New state:", {
-    status: newState.status as GameStatus,
-    lives: newState.lives,
-    respawnTime: newState.respawnTime,
-  });
 
   return newState;
 }

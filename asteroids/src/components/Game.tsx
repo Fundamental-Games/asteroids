@@ -23,27 +23,22 @@ export const Game: React.FC<GameProps> = ({ width, height }) => {
     isFiring: false,
   });
 
-  // Calculate scale to fit screen while maintaining aspect ratio
   useEffect(() => {
     const updateScale = () => {
       if (!containerRef.current || !canvasRef.current) return;
 
       const container = containerRef.current;
       const canvas = canvasRef.current;
+      if (container.clientWidth <= 0 || container.clientHeight <= 0) {
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+        return;
+      }
 
       const containerAspect = container.clientWidth / container.clientHeight;
       const gameAspect = width / height;
+      const scale = containerAspect > gameAspect ? container.clientHeight / height : container.clientWidth / width;
 
-      let scale = 1;
-      if (containerAspect > gameAspect) {
-        // Container is wider - scale by height
-        scale = container.clientHeight / height;
-      } else {
-        // Container is taller - scale by width
-        scale = container.clientWidth / width;
-      }
-
-      // Apply scale
       canvas.style.width = `${width * scale}px`;
       canvas.style.height = `${height * scale}px`;
     };
@@ -55,38 +50,37 @@ export const Game: React.FC<GameProps> = ({ width, height }) => {
 
   useGameInput(controlsRef);
 
-  // Update to get effects from useGameWorld
-  const { state, dispatch, update, entities, effects } = useGameWorld(controlsRef);
+  const { state, dispatch, update, getEntities } = useGameWorld(controlsRef);
 
-  // Initialize graphics first
   useEffect(() => {
-    console.log("Setting up graphics");
     if (!canvasRef.current) return;
 
-    rendererRef.current = new THREE.WebGLRenderer({
+    const renderer = new THREE.WebGLRenderer({
       canvas: canvasRef.current,
       antialias: true,
     });
-    rendererRef.current.setSize(width, height);
-    rendererRef.current.setClearColor(0x000000);
+    renderer.setSize(width, height);
+    renderer.setClearColor(0x000000);
+    rendererRef.current = renderer;
 
-    sceneRef.current = new THREE.Scene();
+    const scene = new THREE.Scene();
     const camera = new THREE.OrthographicCamera(-960, 960, 540, -540, 0.1, 1000);
     camera.position.z = 1;
-    sceneRef.current.add(camera);
-
-    const scene = sceneRef.current;
-    if (!scene) return;
+    scene.add(camera);
+    sceneRef.current = scene;
     graphicsRef.current = new VectorGraphics(scene);
-    console.log("Graphics initialized");
+
+    return () => {
+      graphicsRef.current?.dispose();
+      graphicsRef.current = null;
+      rendererRef.current?.dispose();
+      rendererRef.current = null;
+      sceneRef.current = null;
+    };
   }, [width, height]);
 
-  // Update animation loop to render effects
   useEffect(() => {
-    if (!rendererRef.current || !graphicsRef.current || !sceneRef.current) {
-      console.log("Missing dependencies for animation");
-      return;
-    }
+    if (!rendererRef.current || !graphicsRef.current || !sceneRef.current) return;
 
     const scene = sceneRef.current;
     const camera = scene.children[0] as THREE.OrthographicCamera;
@@ -97,27 +91,28 @@ export const Game: React.FC<GameProps> = ({ width, height }) => {
     const animate = (currentTime: number) => {
       if (!running) return;
 
-      // Handle tab visibility changes
       if (document.hidden) {
         lastTime = currentTime;
         frameId = requestAnimationFrame(animate);
         return;
       }
 
-      // Clamp deltaTime to prevent large jumps
-      const deltaTime = Math.min((currentTime - lastTime) / 1000, 0.1); // Max 100ms
+      const deltaTime = Math.min((currentTime - lastTime) / 1000, 0.1);
       lastTime = currentTime;
 
       if (deltaTime > 0) {
-        // Only update if time has actually passed
         update(deltaTime);
 
-        // Render
-        if (graphicsRef.current && rendererRef.current) {
-          graphicsRef.current.clear();
-          entities.forEach((entity) => entity.draw(graphicsRef.current!));
-          effects.forEach((effect) => effect.render(graphicsRef.current!));
-          rendererRef.current.render(scene, camera);
+        const { entities, effects } = getEntities();
+        const graphics = graphicsRef.current;
+        const renderer = rendererRef.current;
+
+        if (graphics && renderer) {
+          graphics.clear();
+          entities.forEach((entity) => entity.draw(graphics));
+          effects.forEach((effect) => effect.render(graphics));
+          graphics.flush();
+          renderer.render(scene, camera);
         }
       }
 
@@ -129,27 +124,21 @@ export const Game: React.FC<GameProps> = ({ width, height }) => {
     return () => {
       running = false;
       cancelAnimationFrame(frameId);
-      if (rendererRef.current) {
-        rendererRef.current.dispose();
-      }
     };
-  }, [update, entities, effects]); // Include entities and effects to ensure rendering updates
+  }, [update, getEntities]);
 
-  // Handle space bar for state transitions
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code !== "Space") return;
 
       switch (state.status) {
         case "attract":
-          console.log("Dispatching START_GAME");
           dispatch({ type: "START_GAME" });
           break;
         case "stage-complete":
           dispatch({ type: "START_STAGE", stage: state.stage + 1 });
           break;
         case "game-over":
-          console.log("Dispatching START_GAME");
           dispatch({ type: "START_GAME" });
           break;
       }
@@ -157,7 +146,7 @@ export const Game: React.FC<GameProps> = ({ width, height }) => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [state.status, state.stage]);
+  }, [dispatch, state.status, state.stage]);
 
   return (
     <div

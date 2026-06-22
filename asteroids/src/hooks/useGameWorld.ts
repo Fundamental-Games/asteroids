@@ -1,15 +1,7 @@
-import { useRef, useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { GameWorld } from "../game/GameWorld";
-import { GameAction } from "../game/types";
+import { GameAction, GameState } from "../game/types";
 import { GameControls } from "../hooks/useGameInput";
-import { GameState } from "../game/types";
-import { GameEntity } from "../game/GameEntity";
-import { ExplosionEffect } from "../effects/ExplosionEffect";
-
-interface GameWorldState {
-  entities: GameEntity[];
-  effects: ExplosionEffect[];
-}
 
 export function useGameWorld(controlsRef: React.RefObject<GameControls>) {
   const [state, setState] = useState<GameState>(() => ({
@@ -19,63 +11,56 @@ export function useGameWorld(controlsRef: React.RefObject<GameControls>) {
     score: 0,
     status: "attract",
   }));
+  const stateRef = useRef(state);
 
-  const [worldState, setWorldState] = useState<GameWorldState>({ entities: [], effects: [] });
+  const worldRef = useMemo(() => ({ current: new GameWorld() }), []);
 
-  // Move world initialization to useMemo
-  const worldRef = useMemo(() => {
-    const world = new GameWorld();
-    return { current: world };
-  }, []);
-
-  // Memoize the update function to prevent recreation
   const update = useCallback(
     (deltaTime: number) => {
       if (!controlsRef.current || !worldRef.current) return;
 
       worldRef.current.update(deltaTime, controlsRef.current);
 
-      // Use a single update for both state changes to ensure they stay in sync
       const newState = worldRef.current.getState();
-      const newEntities = worldRef.current.getEntities();
+      const previousState = stateRef.current;
 
-      // Only update if something has actually changed
       if (
-        newState.status !== state.status ||
-        newState.score !== state.score ||
-        newState.stage !== state.stage ||
-        newState.lives !== state.lives ||
-        newEntities.entities !== worldState.entities ||
-        newEntities.effects !== worldState.effects
+        newState.status !== previousState.status ||
+        newState.score !== previousState.score ||
+        newState.stage !== previousState.stage ||
+        newState.lives !== previousState.lives ||
+        newState.respawnTime !== previousState.respawnTime
       ) {
+        stateRef.current = newState;
         setState(newState);
-        setWorldState(newEntities);
       }
     },
-    [controlsRef, state.status, state.score, state.stage, state.lives, worldState.entities, worldState.effects]
+    [controlsRef, worldRef]
   );
 
-  const dispatch = useCallback((action: GameAction) => {
-    if (!worldRef.current) return;
-    worldRef.current.dispatch(action);
-    const newState = worldRef.current.getState();
-    const newEntities = worldRef.current.getEntities();
-    setState(newState);
-    setWorldState(newEntities);
-  }, []);
+  const dispatch = useCallback(
+    (action: GameAction) => {
+      if (!worldRef.current) return;
+      worldRef.current.dispatch(action);
+      const newState = worldRef.current.getState();
+      stateRef.current = newState;
+      setState(newState);
+    },
+    [worldRef]
+  );
 
-  // Add cleanup
+  const getEntities = useCallback(() => worldRef.current.getEntities(), [worldRef]);
+
   useEffect(() => {
     return () => {
       worldRef.current?.dispose();
     };
-  }, []);
+  }, [worldRef]);
 
   return {
-    entities: worldState.entities,
-    effects: worldState.effects,
     state,
     dispatch,
     update,
+    getEntities,
   };
 }

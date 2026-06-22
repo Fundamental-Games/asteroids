@@ -16,6 +16,7 @@ export class SoundSystem {
   private beatCount = 0;
   private beatTimeout: number | null = null;
   private workletLoaded = false;
+  private ufoIntervals: Map<SoundType, number> = new Map();
 
   constructor() {
     this.audioContext = new AudioContext();
@@ -41,7 +42,6 @@ export class SoundSystem {
         await this.audioContext.audioWorklet.addModule("/assets/noise-worklet.js");
       });
       this.workletLoaded = true;
-      console.log("Audio worklet loaded successfully");
     } catch (err) {
       console.error("Failed to load audio worklet:", err);
       // Try to provide more detailed error information
@@ -83,6 +83,12 @@ export class SoundSystem {
     if (oscillator) {
       oscillator.stop();
       this.oscillators.delete(soundType);
+    }
+
+    const ufoInterval = this.ufoIntervals.get(soundType);
+    if (ufoInterval !== undefined) {
+      clearInterval(ufoInterval);
+      this.ufoIntervals.delete(soundType);
     }
 
     // Handle noise nodes
@@ -190,9 +196,10 @@ export class SoundSystem {
     oscillator.frequency.value = 500;
 
     // 2.5Hz alternation between 500Hz and 250Hz
-    setInterval(() => {
+    const interval = window.setInterval(() => {
       oscillator.frequency.value = oscillator.frequency.value === 500 ? 250 : 500;
     }, 400); // 2.5Hz = 400ms period
+    this.ufoIntervals.set("largeUFO", interval);
 
     gainNode.gain.value = 0.1;
     oscillator.connect(gainNode);
@@ -212,9 +219,10 @@ export class SoundSystem {
     oscillator.frequency.value = 1000;
 
     // 5Hz alternation between 1000Hz and 500Hz
-    setInterval(() => {
+    const interval = window.setInterval(() => {
       oscillator.frequency.value = oscillator.frequency.value === 1000 ? 500 : 1000;
     }, 200); // 5Hz = 200ms period
+    this.ufoIntervals.set("smallUFO", interval);
 
     gainNode.gain.value = 0.08;
     oscillator.connect(gainNode);
@@ -348,6 +356,8 @@ export class SoundSystem {
     // Clean up oscillators
     this.oscillators.forEach((osc) => osc.stop());
     this.oscillators.clear();
+    this.ufoIntervals.forEach((interval) => clearInterval(interval));
+    this.ufoIntervals.clear();
 
     // Clean up noise nodes
     this.noiseNodes.forEach((_, type) => this.stopSound(type));

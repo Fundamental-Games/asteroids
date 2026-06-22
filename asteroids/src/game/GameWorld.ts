@@ -37,6 +37,7 @@ export class GameWorld {
   private soundSystem: SoundSystem;
 
   private effects: ExplosionEffect[] = [];
+  private thrustSoundPlaying = false;
 
   constructor() {
     this.soundSystem = new SoundSystem();
@@ -63,11 +64,14 @@ export class GameWorld {
     if (this.state.status === "playing" || this.state.status === "respawning") {
       if (this.ship?.alive) {
         this.ship.setControls(controls);
-        // Handle thrust sound
-        if (controls.isThrusting) {
+        // Handle thrust sound on transitions only. Calling stop/play every
+        // frame was visible in the perf logs and adds avoidable audio churn.
+        if (controls.isThrusting && !this.thrustSoundPlaying) {
           this.soundSystem.playSound("thrust");
-        } else {
+          this.thrustSoundPlaying = true;
+        } else if (!controls.isThrusting && this.thrustSoundPlaying) {
           this.soundSystem.stopSound("thrust");
+          this.thrustSoundPlaying = false;
         }
       }
 
@@ -242,11 +246,9 @@ export class GameWorld {
   }
 
   private handleStateChange(newState: GameState) {
-    console.log("State change:", this.state.status, "->", newState.status);
     switch (newState.status) {
       case "playing":
         if (this.state.status === "attract" || this.state.status === "game-over") {
-          console.log("Initializing new game");
           // Pass owner type with the callback
           this.ship = new Ship((pos, vel) => this.spawnProjectile(pos, vel, "ship"));
           this.ship.setPosition(0, 0);
@@ -256,6 +258,12 @@ export class GameWorld {
           this.ufoSpawnTime = Date.now() + 20000;
           this.soundSystem.resume();
           this.startBackgroundBeat(); // Start beat when game starts
+        } else if (this.state.status === "stage-complete") {
+          this.entities = this.ship ? [this.ship] : [];
+          this.projectileCounts.clear();
+          this.spawnAsteroids(newState.asteroidConfigs);
+          this.ufoSpawnTime = Date.now() + 20000;
+          this.startBackgroundBeat();
         }
         break;
 
@@ -271,11 +279,13 @@ export class GameWorld {
         this.ship = null;
         this.entities = [];
         this.projectileCounts.clear();
+        this.thrustSoundPlaying = false;
         this.spawnAsteroids(generateAsteroidsForStage(1));
         this.soundSystem.stopBackgroundBeat();
         break;
 
       case "game-over":
+        this.thrustSoundPlaying = false;
         this.soundSystem.stopAllSounds();
         break;
     }
@@ -298,7 +308,6 @@ export class GameWorld {
 
   private respawnShip() {
     if (!this.ship) return;
-    console.log("Respawning ship");
     this.ship.respawn({
       position: new THREE.Vector2(0, 0),
       rotation: Math.random() * Math.PI * 2,
@@ -456,7 +465,6 @@ export class GameWorld {
       const asteroids = this.entities
         .filter((e): e is Asteroid => e.getType() === "asteroid")
         .map((ast) => {
-          console.log("Asteroid size:", ast.size);
           return { size: ast.size };
         });
       this.soundSystem.playBackgroundBeat(asteroids, this.state.stage);
@@ -475,6 +483,10 @@ export class GameWorld {
       })
     );
     this.ship.destroy();
+    if (this.thrustSoundPlaying) {
+      this.soundSystem.stopSound("thrust");
+      this.thrustSoundPlaying = false;
+    }
     this.soundSystem.playSound("explosion");
     this.dispatch({ type: "SHIP_DESTROYED" });
   }
