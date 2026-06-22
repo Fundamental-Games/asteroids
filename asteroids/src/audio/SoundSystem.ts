@@ -36,11 +36,8 @@ export class SoundSystem {
       return;
     }
     try {
-      // Try to load from public directory first
-      await this.audioContext.audioWorklet.addModule("/noise-worklet.js").catch(async () => {
-        // Fallback to assets directory if not found in public
-        await this.audioContext.audioWorklet.addModule("/assets/noise-worklet.js");
-      });
+      const base = import.meta.env.BASE_URL || "/";
+      await this.audioContext.audioWorklet.addModule(`${base}noise-worklet.js`);
       this.workletLoaded = true;
     } catch (err) {
       console.error("Failed to load audio worklet:", err);
